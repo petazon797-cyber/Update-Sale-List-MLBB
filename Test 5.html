@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLBB Diamond Sale Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0b0f19; color: #e6edf3; font-family: sans-serif; }
+        .gaming-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
+        .input-style { background: #0d1117; border: 1px solid #30363d; color: #58a6ff; padding: 10px; border-radius: 8px; width: 100%; }
+        .neon-border-blue { border-left: 4px solid #00d4ff; }
+        .btn-delete { color: #f85149; cursor: pointer; transition: 0.2s; }
+        .btn-delete:hover { color: #ff7b72; transform: scale(1.2); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <header class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-blue-400 flex justify-center items-center gap-3">
+            <i class="fas fa-gem"></i> Mobile Legend Diamond Sale Management
+        </h1>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="gaming-card p-6 neon-border-blue text-center">
+            <h3 class="text-gray-400 text-sm">ယနေ့စုစုပေါင်း ဝယ်ရင်း</h3>
+            <p id="totalCost" class="text-2xl font-bold text-yellow-500">0 Ks</p>
+        </div>
+        <div class="gaming-card p-6 border-l-4 border-green-500 text-center">
+            <h3 class="text-gray-400 text-sm">ယနေ့စုစုပေါင်း ရောင်းဈေး</h3>
+            <p id="totalSales" class="text-2xl font-bold text-green-500">0 Ks</p>
+        </div>
+        <div class="gaming-card p-6 border-l-4 border-purple-500 text-center">
+            <h3 class="text-gray-400 text-sm">ယနေ့စုစုပေါင်း အမြတ်</h3>
+            <p id="totalProfit" class="text-2xl font-bold text-blue-400">0 Ks</p>
+        </div>
+    </div>
+
+    <div class="gaming-card p-6 mb-8 border-gray-700">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label class="block mb-1 text-xs text-blue-300">Smile Coin (Sc) Rate</label>
+                <input type="number" id="scRate" value="75.5" class="input-style text-lg" oninput="calculatePrices()">
+            </div>
+            <div>
+                <label class="block mb-1 text-xs text-green-300">မှတ်တမ်းဟောင်းထဲမှ ရှာရန် (ID/Date)</label>
+                <input type="text" id="archiveSearch" onkeyup="searchArchive()" placeholder="Search Name or Date..." class="input-style">
+            </div>
+            <button onclick="exportToExcel()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-4 rounded-lg">
+                <i class="fas fa-file-excel mr-2"></i>Excel ထုတ်မည်
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-8" id="packageGrid"></div>
+
+    <div class="gaming-card p-6 border-blue-500 mb-8">
+        <h2 class="text-xl font-bold mb-4 text-blue-400">အရောင်းမှတ်ရန်</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input type="date" id="saleDate" class="input-style">
+            <input type="text" id="customerId" placeholder="Player ID / Name" class="input-style">
+            <select id="selectedPackage" class="input-style"></select>
+            <input type="number" id="sellingPrice" placeholder="ရောင်းဈေး (Ks)" class="input-style">
+        </div>
+        <button onclick="addSale()" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition">စာရင်းသွင်းမည်</button>
+    </div>
+
+    <div class="gaming-card overflow-hidden">
+        <div class="p-4 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
+            <h3 class="font-bold text-yellow-500"><i class="fas fa-database mr-2"></i>အရောင်းမှတ်တမ်းများအားလုံး</h3>
+            <button onclick="clearAllData()" class="text-xs text-red-400 hover:underline">အကုန်ဖျက်ရန်</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left" id="masterTable">
+                <thead class="bg-gray-900 text-xs uppercase text-gray-400">
+                    <tr>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Package</th>
+                        <th class="p-4">ဝယ်ရင်း</th>
+                        <th class="p-4">ရောင်းဈေး</th>
+                        <th class="p-4">အမြတ်</th>
+                        <th class="p-4 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="masterLog"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const packages = [
+            { name: "50+50", sc: 39 }, { name: "150+150", sc: 116.9 }, { name: "250+250", sc: 187.5 },
+            { name: "500+500", sc: 385 }, { name: "86 Dia", sc: 61.5 }, { name: "172 Dia", sc: 122 },
+            { name: "257 Dia", sc: 177.5 }, { name: "343 Dia", sc: 239 }, { name: "429 Dia", sc: 299.5 },
+            { name: "514 Dia", sc: 355 }, { name: "600 Dia", sc: 416.5 }, { name: "706 Dia", sc: 480 },
+            { name: "878 Dia", sc: 602 }, { name: "1050 Dia", sc: 724 }, { name: "2195 Dia", sc: 1453 },
+            { name: "3688 Dia", sc: 2424 }, { name: "5532 Dia", sc: 3660 }, { name: "9288 Dia", sc: 6079 },
+            { name: "Weekly Pass", sc: 76 }, { name: "Twilight Pass", sc: 402.5 }
+        ];
+
+        let salesData = JSON.parse(localStorage.getItem('mlbbMasterData')) || [];
+
+        document.getElementById('saleDate').valueAsDate = new Date();
+
+        function calculatePrices() {
+            const rate = document.getElementById('scRate').value || 0;
+            const grid = document.getElementById('packageGrid');
+            const select = document.getElementById('selectedPackage');
+            grid.innerHTML = '';
+            select.innerHTML = '<option value="">Package ရွေးပါ</option>';
+
+            packages.forEach(pkg => {
+                const cost = Math.round(pkg.sc * rate);
+                grid.innerHTML += `
+                    <div class="gaming-card p-3 text-center border-gray-800">
+                        <div class="text-[10px] text-blue-300 uppercase">${pkg.name}</div>
+                        <div class="text-lg font-bold text-yellow-500">${cost.toLocaleString()}</div>
+                    </div>
+                `;
+                select.innerHTML += `<option value="${pkg.name}" data-cost="${cost}">${pkg.name} (${cost} Ks)</option>`;
+            });
+        }
+
+        function addSale() {
+            const date = document.getElementById('saleDate').value;
+            const cid = document.getElementById('customerId').value;
+            const pkgSelect = document.getElementById('selectedPackage');
+            const pkgName = pkgSelect.value;
+            const cost = parseFloat(pkgSelect.options[pkgSelect.selectedIndex].dataset.cost);
+            const sell = parseFloat(document.getElementById('sellingPrice').value);
+
+            if(!date || !cid || !pkgName || isNaN(sell)) return alert("အချက်အလက်အားလုံးဖြည့်ပါ");
+
+            salesData.push({ id: Date.now(), date, cid, pkgName, cost, sell, profit: sell - cost });
+            saveAndUpdate();
+            
+            document.getElementById('customerId').value = '';
+            document.getElementById('sellingPrice').value = '';
+        }
+
+        function deleteSale(id) {
+            if(confirm("ဤမှတ်တမ်းကို ဖျက်ရန် သေချာပါသလား?")) {
+                salesData = salesData.filter(s => s.id !== id);
+                saveAndUpdate();
+            }
+        }
+
+        function clearAllData() {
+            if(confirm("မှတ်တမ်းအားလုံးကို အပြီးတိုင် ဖျက်ပစ်မှာ သေချာပါသလား?")) {
+                salesData = [];
+                saveAndUpdate();
+            }
+        }
+
+        function saveAndUpdate() {
+            localStorage.setItem('mlbbMasterData', JSON.stringify(salesData));
+            updateUI();
+        }
+
+        function updateUI() {
+            const log = document.getElementById('masterLog');
+            log.innerHTML = '';
+            
+            let tCost = 0, tSell = 0, tProfit = 0;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Show everything, sorted by date (newest first)
+            salesData.slice().reverse().forEach(s => {
+                // Dashboard calculations (only for today)
+                if(s.date === todayStr) {
+                    tCost += s.cost; tSell += s.sell; tProfit += s.profit;
+                }
+
+                log.innerHTML += `
+                    <tr class="border-t border-gray-800 text-sm hover:bg-gray-800/30">
+                        <td class="p-4 text-gray-400">${s.date}</td>
+                        <td class="p-4 font-bold text-blue-300">${s.cid}</td>
+                        <td class="p-4 text-blue-400">${s.pkgName}</td>
+                        <td class="p-4 text-gray-500">${s.cost.toLocaleString()}</td>
+                        <td class="p-4 text-green-400 font-bold">${s.sell.toLocaleString()}</td>
+                        <td class="p-4 text-blue-400 font-bold">${s.profit.toLocaleString()}</td>
+                        <td class="p-4 text-center"><i class="fas fa-trash-alt btn-delete" onclick="deleteSale(${s.id})"></i></td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('totalCost').innerText = tCost.toLocaleString() + " Ks";
+            document.getElementById('totalSales').innerText = tSell.toLocaleString() + " Ks";
+            document.getElementById('totalProfit').innerText = tProfit.toLocaleString() + " Ks";
+        }
+
+        function searchArchive() {
+            let input = document.getElementById("archiveSearch").value.toUpperCase();
+            let tr = document.getElementById("masterTable").getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                let text = tr[i].innerText.toUpperCase();
+                tr[i].style.display = text.indexOf(input) > -1 ? "" : "none";
+            }
+        }
+
+        function exportToExcel() {
+            if(salesData.length === 0) return alert("ဖိုင်ထုတ်ရန် ဒေတာမရှိပါ");
+            const ws = XLSX.utils.json_to_sheet(salesData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Master Sales");
+            XLSX.writeFile(wb, "MLBB_Diamond_Full_Report.xlsx");
+        }
+
+        calculatePrices();
+        updateUI();
+    </script>
+</body>
+</html>
